@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
 
 @DisplayName("Checker - проверка попадания точек в область")
 class CheckerTest {
@@ -25,7 +26,7 @@ class CheckerTest {
         
         "2, -0.5, 1.0, 2, true",
         "2, -0.5, 1.0, 2, true",
-        "2, -1.1, 1.0, 2, false",
+        "2, -1.1, 1.0, 2, true",
         "2, -1.0, 1.0, 1, false",
         
         "3, -0.5, -0.5, 2, false",
@@ -60,7 +61,7 @@ class CheckerTest {
     @CsvSource({
         "1.0, 0, 2, true",
         "0, 2.0, 2, true",
-        "-1.0, 0, 2, false",
+        "-1.0, 0, 2, true",
         "0, -1.0, 2, true",
         "0, 0, 1, true"
     })
@@ -74,7 +75,7 @@ class CheckerTest {
         "0.4999, 1.0, 1, true",
         "0.5001, 1.0, 1, false",
         "-0.499, 0.749, 1, true",
-        "-0.501, 0.751, 1, false"
+        "-0.501, 0.751, 1, true"
     })
     void testPrecision(float x, float y, float r, boolean expected) {
         assertEquals(expected, checker.check(x, y, r));

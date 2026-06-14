@@ -9,31 +9,6 @@ repositories {
     mavenCentral()
 }
 
-tasks.named('processResources') {
-    enabled = false
-}
-tasks.named('compileJava') {
-    enabled = false
-}
-tasks.named('classes') {
-    enabled = false
-}
-tasks.named('compileTestJava') {
-    enabled = false
-}
-tasks.named('processTestResources') {
-    enabled = false
-}
-tasks.named('testClasses') {
-    enabled = false
-}
-tasks.named('clean') {
-    enabled = false
-}
-tasks.named('build') {
-    enabled = false
-}
-
 dependencies {
     annotationProcessor 'org.projectlombok:lombok:1.18.42'
 
@@ -99,6 +74,7 @@ tasks.register('native2ascii') {
     inputs.files(fileTree(sourceDir) {
         include '*.properties'
     })
+
     outputs.dir(convertedDir)
     outputs.dir(targetDir)
 
@@ -108,15 +84,22 @@ tasks.register('native2ascii') {
         file(convertedDir).mkdirs()
         file(targetDir).mkdirs()
 
-        if (!sourceDir.exists()) {
-            return
-        }
+        if (!sourceDir.exists()) return
 
         sourceDir.eachFileMatch(~/.*\.properties/) { sourceFile ->
+            def text = sourceFile.getText(appConf.encoding.toString())
+            def sb = new StringBuilder()
+
+            text.codePoints().forEach { int cp ->
+                if (cp <= 127) {
+                    sb.append((char) cp)
+                } else {
+                    sb.append(String.format('\\u%04x', cp))
+                }
+            }
+
             def convertedFile = new File(file(convertedDir), sourceFile.name)
-            convertedFile.text = sourceFile.getText(appConf.encoding.toString()).collect { ch ->
-                ch.charAt(0) > 127 ? String.format('\\u%04x', ch.charAt(0) as int) : ch
-            }.join('')
+            convertedFile.text = sb.toString()
             copy {
                 from convertedFile
                 into targetDir
@@ -126,15 +109,19 @@ tasks.register('native2ascii') {
 }
 
 tasks.register('build2', War) {
+
     dependsOn tasks.named('compile')
     dependsOn tasks.named('copyResources')
     dependsOn tasks.named('native2ascii')
 
     archiveFileName.set("${packagingConf.archiveName}.war")
     destinationDirectory.set(layout.buildDirectory.dir("libs"))
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
-    classpath(configurations.runtimeClasspath)
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    classpath = sourceSets.main.runtimeClasspath
+
+    webAppDirName = 'src/main/config'
+
     webXml = file('src/main/config/WEB-INF/web.xml')
 
     from(classesDir) {
@@ -143,11 +130,6 @@ tasks.register('build2', War) {
 
     from(resourcesOutDir) {
         into 'WEB-INF/classes'
-    }
-
-    from('src/main/config') {
-        include 'WEB-INF/**'
-        exclude 'WEB-INF/web.xml'
     }
 
     manifest {
@@ -193,50 +175,105 @@ tasks.register('music', Exec) {
 
 tasks.register('team') {
     doLast {
-        def outDir = file("$buildDir/team")
-        def workDir = file("$buildDir/team-work")
+        def outDir = file("$layout.buildDirectory/team")
+        def zipDir = file("$layout.buildDirectory/team-zip")
+        def snapshotDir = file("$layout.buildDirectory/team-snapshots")
+        def buildsDir = file("$layout.buildDirectory/team-builds")
 
-        delete outDir, workDir
+        zipDir.mkdirs()
         outDir.mkdirs()
-        workDir.mkdirs()
+        snapshotDir.mkdirs()
+        buildsDir.mkdirs()
 
-        (1..3).each { i ->
-            def shortName = "rev-${i}"
-
-            def zipFile = file("$workDir/${shortName}.zip")
-            def snapshotDir = file("$workDir/${shortName}")
-            def serverDir = file("$snapshotDir/server")
-
-            // 1. archive commit
+        (1..3).each { commit ->
             exec {
-                commandLine 'git',
+                commandLine(
+                        'git',
                         'archive',
                         '--format=zip',
-                        "--output=${zipFile.absolutePath}",
-                        "HEAD~${i}"
+                        "--output=${zipDir.absolutePath}/revision-${commit}.zip",
+                        "HEAD~${commit}"
+                )
             }
 
-            // 2. unzip snapshot
             copy {
-                from zipTree(zipFile)
+                from zipTree("${zipDir.absolutePath}/revision-${commit}.zip")
                 into snapshotDir
             }
 
-            // 3. build snapshot
             exec {
-                workingDir serverDir
-                commandLine './gradlew', 'build'
+                workingDir snapshotDir
+                commandLine './gradlew', 'build2'
             }
 
-            // 4. collect jar
             copy {
-                from("$serverDir/build/libs")
-                include '*.jar'
-                into outDir
+                from("$snapshotDir/build/libs")
+                include '*.war'
+                into buildsDir
                 rename { name ->
-                    "${shortName}-${name}"
+                    "${commit}-${name}"
                 }
             }
+        }
+        ant.zip(
+                destfile: "${outDir.absolutePath}/team.zip",
+                basedir: buildsDir.absolutePath
+        )
+
+        delete zipDir
+        delete snapshotDir
+        delete buildsDir
+    }
+}
+
+tasks.register('diff') {
+    doLast {
+        def changedFiles = new ByteArrayOutputStream()
+        def repoRoot = new ByteArrayOutputStream()
+
+        exec {
+            commandLine 'git', 'status', '--porcelain'
+            standardOutput = changedFiles
+        }
+        exec {
+            commandLine 'git', 'rev-parse', '--show-toplevel'
+            standardOutput = repoRoot
+        }
+
+        def changes = changedFiles.toString()
+                .readLines()
+                .collect {
+                    it.trim().substring(2)
+                }
+
+        if (changes.isEmpty()) {
+            println "No changes detected"
+            return
+        }
+
+
+        def targetClasses = repoConf.diffClasses ?: []
+        def matched = changes.findAll { file ->
+            targetClasses.any { cls ->
+                file.contains(cls as String) && file.endsWith('.java')
+            }
+        }
+
+        if (matched.isEmpty()) {
+            println "No relevant class changes"
+            return
+        }
+
+        def root = file(repoRoot.toString().trim())
+        matched.each { path ->
+            exec {
+                workingDir root
+                commandLine 'git', 'add', path
+            }
+        }
+
+        exec {
+            commandLine 'git', 'commit', '-m', 'Auto commit from diff'
         }
     }
 }

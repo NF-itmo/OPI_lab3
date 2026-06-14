@@ -32,6 +32,9 @@ services:
       DB_PASSWORD: horse_ate_green_guinea_pig
       JWT_SECRET: mySuperSecretKey12345
       JWT_EXPIRATION_MS: 86_400_000
+    ports:
+      - "8080:8080"
+      - "9990:9990"
     networks:
       - database_net
       - web_server_net

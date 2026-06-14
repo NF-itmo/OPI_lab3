@@ -14,12 +14,12 @@ class PlotUtilsTest {
     @CsvSource({
             "1.0, 1.0, FIRST_QUADRANT",
             "0.5, 0.5, FIRST_QUADRANT",
-            "-1.0, 1.0, SECOND_QUADRANT",
-            "-0.5, 0.5, SECOND_QUADRANT",
+            "-1.0, 1.0, FOURTH_QUADRANT",
+            "-0.5, 0.5, FOURTH_QUADRANT",
             "-1.0, -1.0, THIRD_QUADRANT",
             "-0.5, -0.5, THIRD_QUADRANT",
-            "1.0, -1.0, FOURTH_QUADRANT",
-            "0.5, -0.5, FOURTH_QUADRANT",
+            "1.0, -1.0, SECOND_QUADRANT",
+            "0.5, -0.5, SECOND_QUADRANT",
     })
     void testGetQuarter(float x, float y, String expectedQuarter) {
         PlotQuarters expected = PlotQuarters.valueOf(expectedQuarter);

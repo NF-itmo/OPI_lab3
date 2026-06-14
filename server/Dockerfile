@@ -17,6 +17,6 @@ RUN chown -R jboss:jboss /opt/jboss/wildfly/modules/org
 
 USER jboss
 COPY --chown=jboss:jboss ./standalone.xml /opt/jboss/wildfly/standalone/configuration/
-COPY --from=build --chown=jboss:jboss build/libs/web3.war /opt/jboss/wildfly/standalone/deployments/ROOT.war
+COPY --from=build --chown=jboss:jboss build/libs/web3.war /opt/jboss/wildfly/standalone/deployments/web3.war
 
 EXPOSE 8080 8080

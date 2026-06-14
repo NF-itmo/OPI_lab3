@@ -20,7 +20,6 @@ ext {
                     'src/main/java/org/web3/services/checker/plot/Checker.java',
                     'src/main/java/org/web3/services/checker/plot/utils/PlotUtils.java'
             ],
-            repoUrl: 'file:///home/nf/Рабочий стол/итмо/OPI_lab3/OPI_lab3/svn',
             teamZipName: 'team.zip',
     ]
 }
